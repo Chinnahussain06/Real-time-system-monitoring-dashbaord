@@ -1,4 +1,4 @@
-# System Monitoring Console
+# Realtime — System Health Monitoring Dashboard
 
 A high-performance, real-time hardware telemetry panel and container diagnostic interface built with React, Vite, Express, and Recharts. This application feeds live compute resource stats directly from the container system to a highly optimized frontend workspace via persistent WebSockets.
 
