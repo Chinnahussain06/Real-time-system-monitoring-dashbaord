@@ -1,20 +1,37 @@
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  lazy,
+  Suspense,
+} from "react";
+import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  Container,
+  Box,
+  CircularProgress,
+  Typography,
+} from "@mui/material";
 
+import {
+  MetricTelemetry,
+  SystemInfo,
+  ClientToServerMsg,
+  ServerToClientMsg,
+} from "../../types";
 
-import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
-import { ThemeProvider, createTheme, CssBaseline, Container, Box, CircularProgress, Typography } from "@mui/material";
-
-// Import types
-import { MetricTelemetry, SystemInfo, ClientToServerMsg, ServerToClientMsg } from "../../types";
-
-// Import modular components
 import DashboardHeader from "../../components/DashboardHeader";
 import ServerSpecs from "../../components/ServerSpecs";
 import MetricsVitals from "../../components/MetricsVitals";
 
-// Lazily load the Recharts-based chart since it contains heavy visualization code
-const MetricsLineChart = lazy(() => import("../../components/MetricsLineChart"));
+const MetricsLineChart = lazy(
+  () => import("../../components/MetricsLineChart"),
+);
 
-// Design standard custom MUI Dark Navy Theme
 const cleanMinimalTheme = createTheme({
   palette: {
     mode: "light",
@@ -72,7 +89,6 @@ export default function SystemMonitoring() {
     staticFilesCount: number;
   } | null>(null);
 
-  // Fetch true directory scan metrics
   useEffect(() => {
     fetch("/api/folder-metrics")
       .then((res) => res.json())
@@ -81,7 +97,9 @@ export default function SystemMonitoring() {
           setFolderMetrics(data.metrics);
         }
       })
-      .catch((err) => console.error("Error fetching workspace folder metrics:", err));
+      .catch((err) =>
+        console.error("Error fetching workspace folder metrics:", err),
+      );
   }, []);
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -89,13 +107,13 @@ export default function SystemMonitoring() {
   const pingStartRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Memoized current metrics representation (latest tick in our telemetry feed)
   const currentMetric = useMemo<MetricTelemetry | null>(() => {
-    return metricsHistory.length > 0 ? metricsHistory[metricsHistory.length - 1] : null;
+    return metricsHistory.length > 0
+      ? metricsHistory[metricsHistory.length - 1]
+      : null;
   }, [metricsHistory]);
 
   const connectWebSocket = useCallback(() => {
-    // Clear any existing reconnect timeouts to avoid multiple parallel connection triggers
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -109,7 +127,6 @@ export default function SystemMonitoring() {
       socketRef.current.close();
     }
 
-    // Determine secure connection vs normal ws based on window host
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${wsProtocol}//${window.location.host}/api/telemetry`;
     console.log(`Connecting to WebSocket address: ${wsUrl}`);
@@ -118,14 +135,15 @@ export default function SystemMonitoring() {
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log("WebSocket connected successfully with system-telemetry host.");
+      console.log(
+        "WebSocket connected successfully with system-telemetry host.",
+      );
       setConnected(true);
 
       if (pingIntervalRef.current) {
         clearInterval(pingIntervalRef.current);
       }
 
-      // Settle standard latency tracking loop (every 3000ms)
       pingIntervalRef.current = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           pingStartRef.current = Date.now();
@@ -151,7 +169,9 @@ export default function SystemMonitoring() {
             setMetricsHistory(message.history);
             setSystemInfo(message.systemInfo);
             if (message.history.length > 0) {
-              setServerUptime(message.history[message.history.length - 1].uptime);
+              setServerUptime(
+                message.history[message.history.length - 1].uptime,
+              );
             }
             break;
           }
@@ -181,7 +201,6 @@ export default function SystemMonitoring() {
         pingIntervalRef.current = null;
       }
 
-      // Automatically retry hook
       if (!reconnectTimeoutRef.current) {
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log("Attempting socket reconnect cycle...");
@@ -211,8 +230,10 @@ export default function SystemMonitoring() {
     };
   }, [connectWebSocket]);
 
-  // Compute status metrics for individual vital systems
-  const getMetricStatus = (metricType: "cpu" | "memory" | "disk" | "responseTime", value: number) => {
+  const getMetricStatus = (
+    metricType: "cpu" | "memory" | "disk" | "responseTime",
+    value: number,
+  ) => {
     let warningLimit = 80;
     if (metricType === "cpu") warningLimit = 80;
     else if (metricType === "memory") warningLimit = 85;
@@ -227,7 +248,6 @@ export default function SystemMonitoring() {
     return "healthy";
   };
 
-  // Sparkline calculation arrays (the last 12 points)
   const sparklines = useMemo(() => {
     const subset = metricsHistory.slice(-12);
     return {
@@ -251,7 +271,6 @@ export default function SystemMonitoring() {
           overflow: "hidden",
         }}
       >
-        {/* Dynamic backdrop accent nodes */}
         <Box
           sx={{
             position: "absolute",
@@ -260,7 +279,8 @@ export default function SystemMonitoring() {
             width: "45vw",
             height: "45vw",
             borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(59, 130, 246, 0.01) 0%, transparent 65%)",
+            background:
+              "radial-gradient(ellipse, rgba(59, 130, 246, 0.01) 0%, transparent 65%)",
             pointerEvents: "none",
           }}
         />
@@ -272,13 +292,17 @@ export default function SystemMonitoring() {
             width: "40vw",
             height: "40vw",
             borderRadius: "50%",
-            background: "radial-gradient(ellipse, rgba(168, 85, 247, 0.01) 0%, transparent 65%)",
+            background:
+              "radial-gradient(ellipse, rgba(168, 85, 247, 0.01) 0%, transparent 65%)",
             pointerEvents: "none",
           }}
         />
 
-        <Container id="app-viewport-container" maxWidth="xl" sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3.2 }}>
-          {/* TOP NAV BANNER CONTAINER */}
+        <Container
+          id="app-viewport-container"
+          maxWidth="xl"
+          sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3.2 }}
+        >
           <section id="banner-section">
             <DashboardHeader
               connected={connected}
@@ -289,12 +313,13 @@ export default function SystemMonitoring() {
             />
           </section>
 
-          {/* SERVER GENERAL SPECIFICATIONS */}
           <section id="specs-section">
-            <ServerSpecs systemInfo={systemInfo} folderMetrics={folderMetrics} />
+            <ServerSpecs
+              systemInfo={systemInfo}
+              folderMetrics={folderMetrics}
+            />
           </section>
 
-          {/* CORE SYSTEM PERFORMANCE METRIC TILES */}
           <section id="vitals-section">
             <MetricsVitals
               currentMetric={currentMetric}
@@ -304,7 +329,6 @@ export default function SystemMonitoring() {
             />
           </section>
 
-          {/* LOWER WORKSPACE - SINGLE ROLLING CHART */}
           <section id="charts-workspace" style={{ width: "100%" }}>
             <Suspense
               fallback={
@@ -322,7 +346,10 @@ export default function SystemMonitoring() {
                   }}
                 >
                   <CircularProgress size={30} color="primary" />
-                  <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 500 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "#64748b", fontWeight: 500 }}
+                  >
                     Initializing live histogram charts...
                   </Typography>
                 </Box>
