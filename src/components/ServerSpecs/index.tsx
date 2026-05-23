@@ -1,7 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+
 
 import React from "react";
 import { Card, CardContent, Typography, Box } from "@mui/material";

@@ -1,12 +1,5 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useEffect, useState } from "react";
 import { Box, Chip, Typography, Tooltip } from "@mui/material";
-import WifiIcon from "@mui/icons-material/Wifi";
-import WifiOffIcon from "@mui/icons-material/WifiOff";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import { SystemInfo } from "../../types";
 
@@ -104,7 +97,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           >
             SYSTEM MONITORING
           </Typography>
-          <Typography id="brand-subtitle" variant="caption" sx={{ color: "#64748b", fontWeight: 500, fontSize: "0.75rem" }}>
+          <Typography
+            id="brand-subtitle"
+            variant="caption"
+            sx={{ color: "#64748b", fontWeight: 500, fontSize: "0.75rem" }}
+          >
             Real-time System Metrics & Telemetry Feed
           </Typography>
         </Box>
@@ -128,20 +125,38 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             alignItems: "center",
           }}
         >
-          <Tooltip title={connected ? `RTT Latency: ${latencyMs}ms` : "Server disconnected"}>
+          <Tooltip
+            title={
+              connected ? `RTT Latency: ${latencyMs}ms` : "Server disconnected"
+            }
+          >
             <Chip
               id="conn-status-chip"
               label={connected ? `CONNECTED (${latencyMs}ms)` : "DISCONNECTED"}
-              color={connected ? (latencyMs > 200 ? "warning" : "success") : "error"}
+              color={
+                connected ? (latencyMs > 200 ? "warning" : "success") : "error"
+              }
               size="small"
               variant="outlined"
               sx={{
                 fontWeight: 600,
                 fontSize: "0.72rem",
                 borderRadius: "6px",
-                borderColor: connected ? (latencyMs > 200 ? "rgba(245, 158, 11, 0.4)" : "rgba(16, 185, 129, 0.4)") : "rgba(239, 68, 68, 0.4)",
-                background: connected ? (latencyMs > 200 ? "rgba(245, 158, 11, 0.05)" : "rgba(16, 185, 129, 0.05)") : "rgba(239, 68, 68, 0.05)",
-                color: connected ? (latencyMs > 200 ? "#b45309" : "#047857") : "#b91c1c",
+                borderColor: connected
+                  ? latencyMs > 200
+                    ? "rgba(245, 158, 11, 0.4)"
+                    : "rgba(16, 185, 129, 0.4)"
+                  : "rgba(239, 68, 68, 0.4)",
+                background: connected
+                  ? latencyMs > 200
+                    ? "rgba(245, 158, 11, 0.05)"
+                    : "rgba(16, 185, 129, 0.05)"
+                  : "rgba(239, 68, 68, 0.05)",
+                color: connected
+                  ? latencyMs > 200
+                    ? "#b45309"
+                    : "#047857"
+                  : "#b91c1c",
               }}
             />
           </Tooltip>
@@ -188,21 +203,65 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             }}
           >
             <Box id="pill-uptime" sx={{ minWidth: "fit-content" }}>
-              <Typography variant="caption" sx={{ display: "block", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", whiteSpace: "nowrap" }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: "#64748b",
+                  fontWeight: 600,
+                  fontSize: "0.68rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 SYSTEM UPTIME
               </Typography>
-              <Typography variant="body2" sx={{ color: "#1e293b", fontFamily: "monospace", fontSize: "0.82rem", fontWeight: 700, whiteSpace: "nowrap" }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "#1e293b",
+                  fontFamily: "monospace",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {formatUptime(serverUptime)}
               </Typography>
             </Box>
 
-            <Box id="pill-divider" sx={{ width: "1px", minWidth: "1px", height: 24, bgcolor: "#cbd5e1" }} />
+            <Box
+              id="pill-divider"
+              sx={{
+                width: "1px",
+                minWidth: "1px",
+                height: 24,
+                bgcolor: "#cbd5e1",
+              }}
+            />
 
             <Box id="pill-clock" sx={{ minWidth: "fit-content" }}>
-              <Typography variant="caption" sx={{ display: "block", color: "#64748b", fontWeight: 600, fontSize: "0.68rem", whiteSpace: "nowrap" }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: "#64748b",
+                  fontWeight: 600,
+                  fontSize: "0.68rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 UTC WALL CLOCK
               </Typography>
-              <Typography variant="body2" sx={{ color: "#3b82f6", fontFamily: "monospace", fontSize: "0.82rem", fontWeight: 700, whiteSpace: "nowrap" }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "#3b82f6",
+                  fontFamily: "monospace",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {currentTime || "--:--:--"}
               </Typography>
             </Box>

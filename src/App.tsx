@@ -1,7 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+
 
 import { lazy, Suspense } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";

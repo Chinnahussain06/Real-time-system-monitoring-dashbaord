@@ -1,6 +1,4 @@
 {
-  "name": "Server Metrics Dashboard",
-  "description": "Real-time system health and server performance monitoring dashboard with live WebSocket metrics and metrics history visualization.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "Real-time System Health Dashboard",
+  "description": "Real-time system health and server performance monitoring dashboard with live WebSocket metrics and metrics history visualization."
 }

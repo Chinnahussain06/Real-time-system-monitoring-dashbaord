@@ -1,7 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+
 
 import { Box } from "@mui/material";
 import SpeedIcon from "@mui/icons-material/Speed";

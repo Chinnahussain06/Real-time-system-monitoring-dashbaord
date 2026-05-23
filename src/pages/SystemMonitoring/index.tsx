@@ -1,7 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+
 
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { ThemeProvider, createTheme, CssBaseline, Container, Box, CircularProgress, Typography } from "@mui/material";
