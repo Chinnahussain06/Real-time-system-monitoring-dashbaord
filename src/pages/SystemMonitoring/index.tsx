@@ -1,42 +1,59 @@
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+
 import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-  lazy,
-  Suspense,
-} from "react";
-import {
-  Container,
   Box,
   CircularProgress,
-  Typography
+  Paper,
+  Stack,
+  Typography,
 } from "@mui/material";
 
-import {
-  MetricTelemetry,
-  SystemInfo,
-  ClientToServerMsg,
-  ServerToClientMsg,
-} from "../../types";
-
 import DashboardHeader from "../../components/DashboardHeader";
-import ServerSpecs from "../../components/ServerSpecs";
 import MetricsVitals from "../../components/MetricsVitals";
+import ServerSpecs from "../../components/ServerSpecs";
+import { useTelemetrySocket } from "../../hooks/useTelemetrySocket";
+import { MetricTelemetry } from "../../types";
 
 const MetricsLineChart = lazy(
   () => import("../../components/MetricsLineChart"),
 );
 
+const getMetricStatus = (
+  metricType: "cpu" | "memory" | "disk" | "responseTime",
+  value: number,
+) => {
+  const limits = {
+    cpu: 80,
+    memory: 85,
+    disk: 90,
+    responseTime: 400,
+  };
 
+  const warningLimit = limits[metricType];
+
+  if (value <= warningLimit) {
+    return "healthy";
+  }
+
+  if (
+    (metricType === "responseTime" && value >= 500) ||
+    (metricType !== "responseTime" && value >= 90)
+  ) {
+    return "critical";
+  }
+
+  return "warning";
+};
 
 export default function SystemMonitoring() {
-  const [connected, setConnected] = useState<boolean>(false);
-  const [latencyMs, setLatencyMs] = useState<number>(0);
-  const [metricsHistory, setMetricsHistory] = useState<MetricTelemetry[]>([]);
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
-  const [serverUptime, setServerUptime] = useState<number>(0);
+  const {
+    connected,
+    latencyMs,
+    metricsHistory,
+    systemInfo,
+    serverUptime,
+  } = useTelemetrySocket();
+
   const [folderMetrics, setFolderMetrics] = useState<{
     totalSizeMb: number;
     fileCount: number;
@@ -47,276 +64,142 @@ export default function SystemMonitoring() {
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/folder-metrics")
-      .then((res) => res.json())
-      .then((data) => {
+    const fetchFolderMetrics = async () => {
+      try {
+        const response = await fetch("/api/folder-metrics");
+        const data = await response.json();
+
         if (data.success) {
           setFolderMetrics(data.metrics);
         }
-      })
-      .catch((err) =>
-        console.error("Error fetching workspace folder metrics:", err),
-      );
+      } catch (error) {
+        console.error(
+          "Error fetching workspace folder metrics:",
+          error,
+        );
+      }
+    };
+
+    fetchFolderMetrics();
   }, []);
 
-  const socketRef = useRef<WebSocket | null>(null);
-  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pingStartRef = useRef<number>(0);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const currentMetric = useMemo<MetricTelemetry | null>(() => {
-    return metricsHistory.length > 0
-      ? metricsHistory[metricsHistory.length - 1]
-      : null;
-  }, [metricsHistory]);
-
-  const connectWebSocket = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (socketRef.current) {
-      socketRef.current.onopen = null;
-      socketRef.current.onmessage = null;
-      socketRef.current.onerror = null;
-      socketRef.current.onclose = null;
-      socketRef.current.close();
-    }
-
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/telemetry`;
-    console.log(`Connecting to WebSocket address: ${wsUrl}`);
-
-    const socket = new WebSocket(wsUrl);
-    socketRef.current = socket;
-
-    socket.onopen = () => {
-      console.log(
-        "WebSocket connected successfully with system-telemetry host.",
-      );
-      setConnected(true);
-
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
-
-      pingIntervalRef.current = setInterval(() => {
-        if (socket.readyState === WebSocket.OPEN) {
-          pingStartRef.current = Date.now();
-          const pingMsg: ClientToServerMsg = { type: "ping" };
-          socket.send(JSON.stringify(pingMsg));
-        }
-      }, 3000);
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const message: ServerToClientMsg = JSON.parse(event.data);
-
-        switch (message.type) {
-          case "pong": {
-            if (pingStartRef.current > 0) {
-              const rtt = Date.now() - pingStartRef.current;
-              setLatencyMs(rtt);
-            }
-            break;
-          }
-          case "sync_history": {
-            setMetricsHistory(message.history);
-            setSystemInfo(message.systemInfo);
-            if (message.history.length > 0) {
-              setServerUptime(
-                message.history[message.history.length - 1].uptime,
-              );
-            }
-            break;
-          }
-          case "metric_tick": {
-            const freshTick = message.metric;
-            setMetricsHistory((prev) => {
-              const updated = [...prev, freshTick];
-              if (updated.length > 60) {
-                updated.shift();
-              }
-              return updated;
-            });
-            setServerUptime(freshTick.uptime);
-            break;
-          }
-        }
-      } catch (err) {
-        console.error("Failed to parse incoming WebSocket frame payload:", err);
-      }
-    };
-
-    socket.onclose = () => {
-      console.log("WebSocket socket connection closed.");
-      setConnected(false);
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-        pingIntervalRef.current = null;
-      }
-
-      if (!reconnectTimeoutRef.current) {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log("Attempting socket reconnect cycle...");
-          connectWebSocket();
-        }, 3000);
-      }
-    };
-
-    socket.onerror = (err) => {
-      console.error("A WebSocket connection error occurred:", err);
-    };
-  }, []);
-
-  useEffect(() => {
-    connectWebSocket();
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, [connectWebSocket]);
-
-  const getMetricStatus = (
-    metricType: "cpu" | "memory" | "disk" | "responseTime",
-    value: number,
-  ) => {
-    let warningLimit = 80;
-    if (metricType === "cpu") warningLimit = 80;
-    else if (metricType === "memory") warningLimit = 85;
-    else if (metricType === "disk") warningLimit = 90;
-    else if (metricType === "responseTime") warningLimit = 400;
-
-    if (value > warningLimit) {
-      if (metricType === "responseTime" && value >= 500) return "critical";
-      if (metricType !== "responseTime" && value >= 90) return "critical";
-      return "warning";
-    }
-    return "healthy";
-  };
+  const currentMetric = useMemo<MetricTelemetry | null>(
+    () => metricsHistory.at(-1) ?? null,
+    [metricsHistory],
+  );
 
   const sparklines = useMemo(() => {
-    const subset = metricsHistory.slice(-12);
+    const recentMetrics = metricsHistory.slice(-12);
+
     return {
-      cpu: subset.map((m) => m.cpuLoad),
-      memory: subset.map((m) => m.memoryUtilization),
-      disk: subset.map((m) => m.diskUtilization),
-      latency: subset.map((m) => m.responseTimeMs),
+      cpu: recentMetrics.map((metric) => metric.cpuLoad),
+      memory: recentMetrics.map(
+        (metric) => metric.memoryUtilization,
+      ),
+      disk: recentMetrics.map(
+        (metric) => metric.diskUtilization,
+      ),
+      latency: recentMetrics.map(
+        (metric) => metric.responseTimeMs,
+      ),
     };
   }, [metricsHistory]);
 
   return (
-  
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "#f8fafc",
+        px: { xs: 2, md: 3 },
+        py: 3,
+        position: "relative",
+      }}
+    >
       <Box
-        id="app-root-container"
         sx={{
-          minHeight: "100vh",
-          background: "#f8fafc",
-          pb: 8,
+          position: "absolute",
+          top: "10%",
+          left: "5%",
+          width: "45vw",
+          height: "45vw",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(ellipse, rgba(59,130,246,0.01) 0%, transparent 65%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <Box
+        sx={{
+          position: "absolute",
+          bottom: "12%",
+          right: "5%",
+          width: "40vw",
+          height: "40vw",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(ellipse, rgba(168,85,247,0.01) 0%, transparent 65%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <Stack
+        spacing={3}
+        sx={{
           position: "relative",
-          overflow: "hidden",
+          zIndex: 1,
         }}
       >
-        <Box
-          sx={{
-            position: "absolute",
-            top: "10%",
-            left: "5%",
-            width: "45vw",
-            height: "45vw",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(ellipse, rgba(59, 130, 246, 0.01) 0%, transparent 65%)",
-            pointerEvents: "none",
-          }}
-        />
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: "12%",
-            right: "5%",
-            width: "40vw",
-            height: "40vw",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(ellipse, rgba(168, 85, 247, 0.01) 0%, transparent 65%)",
-            pointerEvents: "none",
-          }}
+        <DashboardHeader
+          connected={connected}
+          latencyMs={latencyMs}
+          systemInfo={systemInfo}
+          serverUptime={serverUptime}
+          activeAlertCount={0}
         />
 
-        <Container
-          id="app-viewport-container"
-          maxWidth={false}
-          disableGutters
-          sx={{ pt: 3, display: "flex", flexDirection: "column", gap: 3.2 }}
-        >
-          <section id="banner-section">
-            <DashboardHeader
-              connected={connected}
-              latencyMs={latencyMs}
-              systemInfo={systemInfo}
-              serverUptime={serverUptime}
-              activeAlertCount={0}
-            />
-          </section>
+        <ServerSpecs
+          systemInfo={systemInfo}
+          folderMetrics={folderMetrics}
+        />
 
-          <section id="specs-section">
-            <ServerSpecs
-              systemInfo={systemInfo}
-              folderMetrics={folderMetrics}
-            />
-          </section>
+        <MetricsVitals
+          currentMetric={currentMetric}
+          systemInfo={systemInfo}
+          sparklines={sparklines}
+          getMetricStatus={getMetricStatus}
+        />
 
-          <section id="vitals-section">
-            <MetricsVitals
-              currentMetric={currentMetric}
-              systemInfo={systemInfo}
-              sparklines={sparklines}
-              getMetricStatus={getMetricStatus}
-            />
-          </section>
-
-          <section id="charts-workspace" style={{ width: "100%" }}>
-            <Suspense
-              fallback={
-                <Box
-                  sx={{
-                    height: 320,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    background: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "12px",
-                    gap: 1.5,
-                  }}
-                >
-                  <CircularProgress size={30} color="primary" />
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "#64748b", fontWeight: 500 }}
-                  >
-                    Initializing live histogram charts...
-                  </Typography>
-                </Box>
-              }
+        <Suspense
+          fallback={
+            <Paper
+              elevation={0}
+              sx={{
+                height: 320,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 3,
+              }}
             >
-              <MetricsLineChart history={metricsHistory} />
-            </Suspense>
-          </section>
-        </Container>
-      </Box>
-    
+              <CircularProgress size={30} />
+
+              <Typography
+                variant="body2"
+                color="text.secondary"
+              >
+                Initializing live histogram charts...
+              </Typography>
+            </Paper>
+          }
+        >
+          <MetricsLineChart history={metricsHistory} />
+        </Suspense>
+      </Stack>
+    </Box>
   );
 }
